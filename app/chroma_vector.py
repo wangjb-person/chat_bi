@@ -1,6 +1,9 @@
 import os
-# 设置 HuggingFace 镜像源（在导入 sentence_transformers 之前设置） #从国内镜像下载模型
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+# HuggingFace 镜像（在导入 sentence_transformers 之前；可由 .env 的 HF_ENDPOINT 覆盖）
+if os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = os.getenv("HF_ENDPOINT")
+elif "HF_ENDPOINT" not in os.environ:
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import uuid
 import pandas as pd
 from typing import List, Optional, Dict, Any
@@ -39,9 +42,13 @@ class ChromaVectorStore:
 
 
         # 初始化嵌入模型（sentence-transformers）
+        embedding_name = self.config.get(
+            "embedding_model", "paraphrase-multilingual-MiniLM-L12-v2"
+        )
+        cache_folder = self.config.get("model_cache_dir", "./model_cache")
         self.embedding_model = SentenceTransformer(
-            "paraphrase-multilingual-MiniLM-L12-v2",
-            cache_folder="./model_cache"  # 可选：指定缓存目录
+            embedding_name,
+            cache_folder=cache_folder,
         )
         self._embedding_dim = 384  # paraphrase-multilingual-MiniLM-L12-v2 的维度
 

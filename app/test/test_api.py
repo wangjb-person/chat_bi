@@ -1,6 +1,6 @@
 from openai import OpenAI
 
-# ==================== 您的配置 ====================
+# ====================测试大模型 ====================
 API_KEY = "sk-bbcf40088d034f8dafff1597f585e1ff"
 BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 MODEL = "qwen-plus"

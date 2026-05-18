@@ -1,10 +1,24 @@
 import json
+import logging
+import os
+import socket
 import sys
 import traceback
 from pathlib import Path
+from typing import Optional
 from functools import wraps
 from flask import Flask, jsonify, Response, request, send_from_directory
 import pandas as pd
+
+# 统一 API 日志（PyCharm / 终端均输出到 stdout，避免“没日志”的误解）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [chatbi] %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+    force=True,
+)
+log = logging.getLogger("chatbi")
 
 # 添加项目根目录到路径
 sys.path.append(str(Path(__file__).parent))
@@ -12,33 +26,44 @@ sys.path.append(str(Path(__file__).parent))
 from chroma_vector import ChromaVectorStore
 from my_vanna import VannaChroma
 from dotenv import load_dotenv
-import os
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_ROOT / ".env")
+
+
+def _env(key: str, default: Optional[str] = None, *, required: bool = False) -> str:
+    value = os.getenv(key, default)
+    if required and not value:
+        raise RuntimeError(
+            f"缺少环境变量 {key}，请在项目根目录 .env 中配置"
+        )
+    return value
+
 
 app = Flask(__name__, static_folder='templates', static_url_path='')
 
 # ==================== 配置 ====================
 CONFIG = {
     # OpenAI 配置
-    "api_key": os.getenv("OPENAI_API_KEY", "sk-bbcf40088d034f8dafff1597f585e1ff"),
-    "base_url": os.getenv("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    "model": os.getenv("LLM_MODEL", "qwen-plus"),
+    "api_key": _env("OPENAI_API_KEY", required=True),
+    "base_url": _env("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    "model": _env("LLM_MODEL", "qwen-plus"),
     "initial_prompt": "你是一位MySQL数据库专家。",
 
     # ChromaDB 配置
-    "persist_directory": os.getenv("CHROMA_DB_PATH", "./chroma_db"),
-    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "persist_directory": _env("CHROMA_DB_PATH", "./chroma_db"),
+    "embedding_model": _env("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2"),
+    "model_cache_dir": _env("MODEL_CACHE_DIR", "./model_cache"),
 
     # MySQL 配置
     "mysql": {
         # Windows 下 localhost 常解析到 ::1，若 mysqld 只监听 127.0.0.1 会导致连接长时间挂起；可设 MYSQL_HOST=localhost 覆盖
-        "host": os.getenv("MYSQL_HOST", "127.0.0.1"),
-        "port": int(os.getenv("MYSQL_PORT", 3306)),
-        "user": os.getenv("MYSQL_USER", "root"),
-        "password": os.getenv("MYSQL_PASSWORD", "12345678"),
-        "database": os.getenv("MYSQL_DATABASE", "testDatabase")
-    }
+        "host": _env("MYSQL_HOST", "127.0.0.1"),
+        "port": int(_env("MYSQL_PORT", "3306")),
+        "user": _env("MYSQL_USER", "root"),
+        "password": _env("MYSQL_PASSWORD", required=True),
+        "database": _env("MYSQL_DATABASE", "testDatabase"),
+    },
 }
 
 # 初始化 Vanna 实例
@@ -83,6 +108,13 @@ def requires_cache(fields):
 
 # ==================== API 路由 ====================
 
+@app.before_request
+def _log_incoming_api():
+    """记录所有 /api 请求，便于确认浏览器是否打到当前 Flask 进程。"""
+    if request.path.startswith("/api/"):
+        log.info(">>> %s %s", request.method, request.path)
+
+
 @app.route('/')
 def root():
     """首页"""
@@ -93,6 +125,16 @@ def root():
 def health():
     """健康检查"""
     return jsonify({"status": "ok"})
+
+
+@app.route('/api/ping', methods=['GET'])
+def ping():
+    """健康检查（含进程号，用于确认浏览器连的是当前终端这一个 Flask）"""
+    return jsonify({
+        "status": "ok",
+        "pid": os.getpid(),
+        "cwd": os.getcwd(),
+    })
 
 
 @app.route('/api/train', methods=['POST'])
@@ -174,6 +216,12 @@ def generate_sql_stream():
 
     question = messages[-1]["content"]
     id = generate_id(question)
+    log.info(
+        "[generate_sql_stream] 开始 question=%r table=%r id=%s",
+        question[:80] + ("..." if len(question) > 80 else ""),
+        table_name or "(空)",
+        id,
+    )
 
     def generate():
         full_sql = ""
@@ -190,8 +238,14 @@ def generate_sql_stream():
             cache[id]['sql'] = extracted
             cache[id]['question'] = question
 
+            log.info(
+                "[generate_sql_stream] 结束 id=%s 提取SQL长度=%d",
+                id,
+                len(extracted or ""),
+            )
             yield f"data: {json.dumps({'done': True, 'id': id, 'sql': extracted})}\n\n"
         except Exception as e:
+            log.exception("[generate_sql_stream] 失败: %s", e)
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(
@@ -215,13 +269,14 @@ def run_sql():
     if not sql:
         # 从缓存获取
         if not id or id not in cache or 'sql' not in cache[id]:
+            log.warning("[run_sql] 拒绝: 无 SQL 且缓存未命中 id=%s", id)
             return jsonify({"error": "No SQL provided"}), 400
         sql = cache[id]['sql']
 
     try:
-        print(f"[api/run_sql] 开始 id={id} sql_len={len(sql or '')}", flush=True)
+        log.info("[run_sql] 开始 id=%s sql_len=%d", id, len(sql or ""))
         df = vn.run_sql(sql)
-        print(f"[api/run_sql] 查询完成 row_count={len(df)}，准备返回 JSON", flush=True)
+        log.info("[run_sql] 完成 row_count=%d", len(df))
 
         if not id:
             id = generate_id(sql[:50])
@@ -238,6 +293,7 @@ def run_sql():
             "row_count": len(df)
         })
     except Exception as e:
+        log.exception("[run_sql] 失败: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
@@ -404,12 +460,34 @@ def get_cache():
     })
 
 
-if __name__ == "__main__":
-    print("=" * 50)
-    print("ChatBI Demo 启动中...")
-    print(f"MySQL: {CONFIG['mysql']['host']}:{CONFIG['mysql']['port']}/{CONFIG['mysql']['database']}")
-    print(f"ChromaDB 路径: {CONFIG['persist_directory']}")
-    print(f"LLM 模型: {CONFIG['model']}")
-    print("=" * 50)
+def _ensure_port_free(port: int) -> None:
+    """启动前检测端口，避免多个 Flask 同时监听 5000 导致浏览器连错进程、终端无日志。"""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("0.0.0.0", port))
+    except OSError:
+        log.error("=" * 50)
+        log.error("端口 %d 已被占用！本终端无法接收浏览器请求。", port)
+        log.error("请执行: netstat -ano | findstr :%d", port)
+        log.error("然后结束所有占用该端口的 python: taskkill /PID <pid> /F")
+        log.error("再只启动一个: cd app && python app.py")
+        log.error("=" * 50)
+        raise SystemExit(1)
+    finally:
+        probe.close()
 
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+
+if __name__ == "__main__":
+    port = int(_env("FLASK_PORT", "5000"))
+
+    log.info("=" * 50)
+    log.info("ChatBI Demo 启动 (pid=%s cwd=%s)", os.getpid(), os.getcwd())
+    log.info("MySQL: %s:%s/%s", CONFIG['mysql']['host'], CONFIG['mysql']['port'], CONFIG['mysql']['database'])
+    log.info("ChromaDB: %s", CONFIG['persist_directory'])
+    log.info("LLM: %s", CONFIG['model'])
+    log.info("浏览器请打开: http://127.0.0.1:%d  （页头应显示 pid=%s）", port, os.getpid())
+    log.info("提问后应依次看到: >>> POST /api/generate_sql_stream -> [run_sql]")
+    log.info("=" * 50)
+
+    _ensure_port_free(port)
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

@@ -1,7 +1,10 @@
+import logging
 import pandas as pd
 from chroma_vector import ChromaVectorStore
 import pymysql
 from typing import List, Dict, Optional
+
+log = logging.getLogger("chatbi")
 
 
 class VannaChroma(ChromaVectorStore):
@@ -18,17 +21,25 @@ class VannaChroma(ChromaVectorStore):
         执行 SQL 查询并返回 DataFrame。
         每次请求使用独立连接，避免 Flask 多线程下共享 pymysql 连接导致阻塞或异常。
         """
-        host = self.mysql_config.get("host", "127.0.0.1")
-        port = self.mysql_config.get("port", 3306)
-        print(f"[run_sql] 正在连接 MySQL {host}:{port} ...", flush=True)
+        host = self.mysql_config.get("host")
+        port = self.mysql_config.get("port")
+        user = self.mysql_config.get("user")
+        password = self.mysql_config.get("password")
+        database = self.mysql_config.get("database")
+        if not all([host, port, user, password, database]):
+            raise ValueError(
+                "MySQL 连接信息不完整，请在 .env 中配置 MYSQL_HOST / MYSQL_PORT / "
+                "MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE"
+            )
+        log.info("[run_sql] 连接 MySQL %s:%s ...", host, port)
         conn = None
         try:
             conn = pymysql.connect(
                 host=host,
                 port=port,
-                user=self.mysql_config.get("user", "root"),
-                password=self.mysql_config.get("password", "12345678"),
-                database=self.mysql_config.get("database", "testDatabase"),
+                user=user,
+                password=password,
+                database=database,
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor,
                 connect_timeout=10,
@@ -36,16 +47,14 @@ class VannaChroma(ChromaVectorStore):
                 write_timeout=60,
                 autocommit=True,
             )
-            print("[run_sql] 已连接，执行 SQL ...", flush=True)
+            log.info("[run_sql] 已连接，执行 SQL")
             with conn.cursor() as cursor:
                 cursor.execute(sql)
                 results = cursor.fetchall()
-                print(f"[run_sql] 已取回 {len(results)} 行", flush=True)
+                log.info("[run_sql] 已取回 %d 行", len(results))
                 return pd.DataFrame(results)
         except Exception as e:
-            print(f"❌ SQL 执行失败: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
+            log.exception("[run_sql] SQL 执行失败: %s", e)
             raise Exception(f"SQL 执行失败: {str(e)}\nSQL: {sql}")
         finally:
             if conn is not None:
