@@ -1,5 +1,6 @@
 import logging
 import socket
+from pathlib import Path
 
 from flask import Flask, request
 
@@ -16,12 +17,14 @@ def create_app(settings: Settings | None = None) -> Flask:
     setup_logging()
     settings = settings or get_settings()
     backend_root = settings.backend_root
+    spa_dist = backend_root / "static" / "dist"
+
+    static_folder = str(spa_dist if (spa_dist / "index.html").is_file() else backend_root / "templates")
 
     app = Flask(
         __name__,
-        static_folder=str(backend_root / "templates"),
+        static_folder=static_folder,
         static_url_path="",
-        template_folder=str(backend_root / "templates"),
         root_path=str(backend_root),
     )
     app.extensions["container"] = build_container(settings)

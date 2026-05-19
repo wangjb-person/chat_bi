@@ -57,11 +57,6 @@ class Settings:
     project_root: Path
     backend_root: Path
 
-    @property
-    def templates_dir(self) -> Path:
-        return self.backend_root / "templates"
-
-
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     load_dotenv(PROJECT_ROOT / ".env")
