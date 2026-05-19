@@ -5,6 +5,9 @@ import pandas as pd
 
 from chatbi.config.settings import Settings
 from chatbi.infrastructure.db.mysql_executor import MysqlExecutor
+from chatbi.infrastructure.llm.chinese_question_rules import (
+    CHINESE_BUSINESS_QUESTION_RULES,
+)
 from chatbi.infrastructure.llm.client import LlmClient
 from chatbi.infrastructure.llm.messages import assistant_message, system_message, user_message
 from chatbi.infrastructure.llm.prompt_builder import SqlPromptBuilder
@@ -22,7 +25,8 @@ _CORRECTION_USER_TEMPLATE = (
     "1. 仅输出修正后的完整可执行 SQL（可用 ```sql 代码块包裹）\n"
     "2. 必须符合 MySQL 8.0+ 方言，不要使用 PERCENTILE_CONT、WITHIN GROUP 等\n"
     "3. LIMIT/OFFSET 偏移量只能是常量整数\n"
-    "4. 不要重复解释原因"
+    "4. SELECT 输出列须使用中文 AS 别名（反引号），与 DDL 字段含义一致\n"
+    "5. 不要重复解释原因"
 )
 
 _MYSQL_PREFLIGHT_CHECKS: List[Tuple[re.Pattern[str], str]] = [
@@ -201,15 +205,27 @@ class ChatService:
         sql = bucket["sql"]
         df = bucket["df"]
 
+        if not df.empty:
+            col_hint = "、".join(str(c) for c in df.columns.tolist())
+            data_sample = (
+                f"结果列（展示用中文表头）: {col_hint}\n"
+                f"{df.head(5).to_string()}"
+            )
+        else:
+            data_sample = "无数据"
+
         messages = [
             system_message(
-                "你是一个SQL问题生成器。请严格按以下规则生成后续问题："
-                "1. 只生成能用一条SQL回答的问题\n"
+                "你是一个业务数据分析助手。请严格按以下规则生成后续追问：\n"
+                "1. 只生成能用一条 SQL 回答的问题\n"
                 "2. 每个问题必须是独立、完整的中文句子\n"
                 "3. 禁止包含任何解释、推理或上下文说明\n"
                 "4. 直接列出问题，不要编号\n\n"
-                f"参考信息：原问题='{question}'，SQL='{sql}'，数据示例：\n"
-                f"{df.head(5).to_string() if not df.empty else '无数据'}"
+                f"{CHINESE_BUSINESS_QUESTION_RULES}\n\n"
+                f"参考信息：\n"
+                f"原问题：{question}\n"
+                f"已执行查询（供理解，勿在追问中复述英文字段）:\n{sql}\n"
+                f"查询结果示例：\n{data_sample}"
             ),
             user_message(f"请直接生成{n_questions}个后续问题，每个问题单独一行。"),
         ]

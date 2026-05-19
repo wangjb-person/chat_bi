@@ -6,6 +6,7 @@ export interface ApiErrorBody {
 /** 查询结果（与后端 _query_result_payload 一致） */
 export interface QueryResult {
   data: Record<string, unknown>[]
+  /** 列名即表头（由 SQL AS 中文别名决定） */
   columns: string[]
   row_count: number
 }

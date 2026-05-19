@@ -137,6 +137,18 @@ class ChromaVectorStore:
         )
         return doc_id
 
+    def list_all_ddl_texts(self) -> List[str]:
+        """返回向量库中全部 DDL 文本（用于解析中文 COMMENT）。"""
+        collection = self.chroma_client.get_collection(self.COLLECTION_DDL)
+        data = collection.get(include=["metadatas"])
+        ddl_list: List[str] = []
+        if not data.get("metadatas"):
+            return ddl_list
+        for metadata in data["metadatas"]:
+            if metadata and metadata.get("ddl"):
+                ddl_list.append(metadata["ddl"])
+        return ddl_list
+
     def get_related_ddl(self, question: str, table_name: str = "") -> List[str]:
         collection = self.chroma_client.get_collection(self.COLLECTION_DDL)
         where_filter = {"table_name": table_name} if table_name else None

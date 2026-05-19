@@ -15,8 +15,6 @@ export interface StreamAskResult {
   queryResult?: QueryResult
   runError?: string
   needsFallbackRun: boolean
-  sqlCorrected?: boolean
-  correctionCount?: number
 }
 
 /**
@@ -83,8 +81,6 @@ export async function streamAskSql(params: StreamAskParams): Promise<StreamAskRe
             queryResult: done.query_result,
             runError: done.run_error,
             needsFallbackRun: Boolean(sql && !done.query_result && !done.run_error),
-            sqlCorrected: done.sql_corrected,
-            correctionCount: done.correction_count,
           }
           break
         }
