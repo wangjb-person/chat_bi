@@ -1,17 +1,44 @@
 import re
-from typing import Dict, Generator, List
+from typing import Dict, Generator, List, Optional, Tuple
 
 import pandas as pd
 
 from chatbi.config.settings import Settings
 from chatbi.infrastructure.db.mysql_executor import MysqlExecutor
 from chatbi.infrastructure.llm.client import LlmClient
-from chatbi.infrastructure.llm.messages import system_message, user_message
+from chatbi.infrastructure.llm.messages import assistant_message, system_message, user_message
 from chatbi.infrastructure.llm.prompt_builder import SqlPromptBuilder
 from chatbi.infrastructure.llm.sql_extractor import SqlExtractor
 from chatbi.infrastructure.vector.chroma_store import ChromaVectorStore
 from chatbi.infrastructure.viz.plotly_renderer import PlotlyRenderer
 from chatbi.services.session_store import InMemorySessionStore
+
+# 首次执行失败后，最多再让 LLM 修正并尝试的次数
+SQL_CORRECTION_MAX_ATTEMPTS = 2
+
+_CORRECTION_USER_TEMPLATE = (
+    "上述 SQL 在 MySQL 中执行失败，错误信息如下：\n{error}\n\n"
+    "请根据错误修正 SQL。要求：\n"
+    "1. 仅输出修正后的完整可执行 SQL（可用 ```sql 代码块包裹）\n"
+    "2. 必须符合 MySQL 8.0+ 方言，不要使用 PERCENTILE_CONT、WITHIN GROUP 等\n"
+    "3. LIMIT/OFFSET 偏移量只能是常量整数\n"
+    "4. 不要重复解释原因"
+)
+
+_MYSQL_PREFLIGHT_CHECKS: List[Tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(r"PERCENTILE_CONT", re.IGNORECASE),
+        "PERCENTILE_CONT 为 PostgreSQL/Oracle 语法，MySQL 不支持",
+    ),
+    (
+        re.compile(r"WITHIN\s+GROUP", re.IGNORECASE),
+        "WITHIN GROUP 不是 MySQL 语法",
+    ),
+    (
+        re.compile(r"OFFSET\s*\(", re.IGNORECASE),
+        "MySQL 的 OFFSET 不能使用子查询或表达式，请改用 ROW_NUMBER 等方式",
+    ),
+]
 
 
 class ChatService:
@@ -81,8 +108,57 @@ class ChatService:
     def extract_sql(self, llm_response: str) -> str:
         return self._sql_extractor.extract(llm_response)
 
+    def _mysql_sql_preflight(self, sql: str) -> Optional[str]:
+        for pattern, message in _MYSQL_PREFLIGHT_CHECKS:
+            if pattern.search(sql):
+                return message
+        return None
+
     def run_sql(self, sql: str) -> pd.DataFrame:
+        preflight_error = self._mysql_sql_preflight(sql)
+        if preflight_error:
+            raise Exception(f"SQL 预检失败: {preflight_error}\nSQL: {sql}")
         return self._sql_executor.execute(sql)
+
+    def run_sql_with_correction(
+        self,
+        *,
+        messages: List[Dict],
+        table_name: str,
+        sql: str,
+        llm_response: str,
+    ) -> Tuple[pd.DataFrame, str, str, int]:
+        """
+        执行 SQL；失败时将 MySQL 报错反馈给 LLM 修正后重试。
+        返回 (DataFrame, 最终SQL, 最终LLM回复, 修正次数)。
+        """
+        current_sql = sql
+        current_response = llm_response
+        correction_count = 0
+        last_error: Optional[Exception] = None
+
+        for attempt in range(SQL_CORRECTION_MAX_ATTEMPTS + 1):
+            try:
+                df = self.run_sql(current_sql)
+                return df, current_sql, current_response, correction_count
+            except Exception as e:
+                last_error = e
+                if attempt >= SQL_CORRECTION_MAX_ATTEMPTS:
+                    break
+
+                correction_prompt = self._build_rag_prompt(messages, table_name)
+                correction_prompt.append(assistant_message(current_sql))
+                correction_prompt.append(
+                    user_message(_CORRECTION_USER_TEMPLATE.format(error=str(e)))
+                )
+                current_response = self._llm.complete(correction_prompt)
+                current_sql = self._sql_extractor.extract(current_response).replace(
+                    "\\_", "_"
+                )
+                correction_count += 1
+
+        assert last_error is not None
+        raise last_error
 
     def save_sql_result(
         self, session_id: str, *, question: str, sql: str

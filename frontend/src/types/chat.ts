@@ -34,6 +34,8 @@ export interface SseDonePayload {
   sql: string
   query_result?: QueryResult
   run_error?: string
+  sql_corrected?: boolean
+  correction_count?: number
 }
 
 export interface SseErrorPayload {

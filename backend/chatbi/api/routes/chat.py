@@ -100,7 +100,26 @@ def generate_sql_stream():
                         session_id,
                         len(extracted),
                     )
-                    df = container.chat.run_sql(extracted)
+                    df, final_sql, _, correction_count = (
+                        container.chat.run_sql_with_correction(
+                            messages=messages,
+                            table_name=table_name,
+                            sql=extracted,
+                            llm_response=full_response,
+                        )
+                    )
+                    if correction_count > 0:
+                        extracted = final_sql
+                        done_payload["sql"] = final_sql
+                        done_payload["sql_corrected"] = True
+                        done_payload["correction_count"] = correction_count
+                        container.chat.save_sql_result(
+                            session_id, question=question, sql=final_sql
+                        )
+                        log.info(
+                            "[generate_sql_stream] SQL 经 %d 次纠错后成功",
+                            correction_count,
+                        )
                     container.chat.save_query_result(session_id, df)
                     done_payload["query_result"] = _query_result_payload(df)
                     log.info(
