@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { QueryResult } from '@/types/api'
+import SqlBlock from './SqlBlock.vue'
 
-defineProps<{ result: QueryResult }>()
+defineProps<{
+  result: QueryResult
+  /** 可选：挂在结果底部的技术向 SQL 详情 */
+  sql?: string
+}>()
 
 const maxRows = 100
 </script>
@@ -15,11 +20,6 @@ const maxRows = 100
 
     <div v-if="result.data?.length" class="data-table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th v-for="col in result.columns" :key="col">{{ col }}</th>
-          </tr>
-        </thead>
         <tbody>
           <tr v-for="(row, ri) in result.data.slice(0, maxRows)" :key="ri">
             <td v-for="col in result.columns" :key="col">
@@ -32,6 +32,8 @@ const maxRows = 100
         仅显示前 {{ maxRows }} 行，共 {{ result.row_count }} 行
       </p>
     </div>
+
+    <SqlBlock v-if="sql?.trim()" :sql="sql" />
   </div>
 </template>
 
@@ -65,14 +67,6 @@ table {
   font-size: 12px;
 }
 
-th {
-  padding: 10px 12px;
-  text-align: left;
-  background: #f8fafc;
-  font-weight: 600;
-  border-bottom: 1px solid var(--color-border);
-}
-
 td {
   padding: 8px 12px;
   border-bottom: 1px solid #f1f5f9;
@@ -87,5 +81,16 @@ tr:hover td {
   color: var(--color-accent);
   margin-top: 8px;
   padding: 0 4px;
+}
+
+/* 默认几乎不可见，鼠标悬停结果区时才露出（供内部技术同事使用） */
+.query-result:hover :deep(.sql-link),
+.query-result:focus-within :deep(.sql-link) {
+  opacity: 1;
+}
+
+.query-result :deep(.sql-link) {
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 </style>

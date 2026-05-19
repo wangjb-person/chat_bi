@@ -12,7 +12,7 @@ const WELCOME: ChatMessage = {
   role: 'assistant',
   kind: 'welcome',
   text: `👋 你好！我是 ChatBI 助手。
-你可以直接输入自然语言问题，我会帮你生成 SQL、执行查询并展示结果。
+你可以直接用自然语言提问，我会帮你查询并展示结果。
 
 📌 例如：
 • 贵阳金阳第一中学排名第一的总分比排名第二的高多少分
@@ -30,11 +30,6 @@ export const useChatStore = defineStore('chat', () => {
 
   function removeById(id: string) {
     messages.value = messages.value.filter((m) => m.id !== id)
-  }
-
-  function updateSqlMessage(id: string, sql: string) {
-    const msg = messages.value.find((m) => m.id === id)
-    if (msg) msg.sql = sql
   }
 
   async function appendPlotAndFollowup(sessionId: string, hasData: boolean) {
@@ -69,13 +64,18 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function showQueryResult(sessionId: string, data: QueryResult) {
+  async function showQueryResult(
+    sessionId: string,
+    data: QueryResult,
+    sql?: string,
+  ) {
     currentSessionId.value = sessionId
     push({
       id: createId('result'),
       role: 'assistant',
       kind: 'query-result',
       queryResult: data,
+      sql: sql?.trim() || undefined,
     })
     await appendPlotAndFollowup(sessionId, (data.data?.length ?? 0) > 0)
   }
@@ -88,7 +88,7 @@ export const useChatStore = defineStore('chat', () => {
       await new Promise((r) => setTimeout(r, 300))
       const data = await chatApi.runSql(sessionId, sql)
       removeById(execId)
-      await showQueryResult(data.id, data)
+      await showQueryResult(data.id, data, sql)
     } catch (e) {
       removeById(execId)
       push({
@@ -112,33 +112,13 @@ export const useChatStore = defineStore('chat', () => {
     const loadingId = createId('loading')
     push({ id: loadingId, role: 'assistant', kind: 'loading' })
 
-    const sqlMsgId = createId('sql')
-    let sqlMsgCreated = false
-
     try {
       const stream = await streamAskSql({
         question: q,
         tableName: app.tableName,
-        onSqlChunk: (_chunk, full) => {
-          if (!sqlMsgCreated) {
-            removeById(loadingId)
-            push({ id: sqlMsgId, role: 'assistant', kind: 'sql-stream', sql: full })
-            sqlMsgCreated = true
-          } else {
-            updateSqlMessage(sqlMsgId, full)
-          }
-        },
       })
 
-      if (!sqlMsgCreated && stream.sql) {
-        removeById(loadingId)
-        push({ id: sqlMsgId, role: 'assistant', kind: 'sql-stream', sql: stream.sql })
-      } else if (!sqlMsgCreated) {
-        removeById(loadingId)
-      } else {
-        updateSqlMessage(sqlMsgId, stream.sql)
-      }
-
+      removeById(loadingId)
       currentSessionId.value = stream.sessionId
 
       if (stream.runError) {
@@ -146,10 +126,10 @@ export const useChatStore = defineStore('chat', () => {
           id: createId('err'),
           role: 'assistant',
           kind: 'error',
-          text: `SQL 执行失败: ${stream.runError}`,
+          text: `查询失败：${stream.runError}`,
         })
       } else if (stream.queryResult) {
-        await showQueryResult(stream.sessionId, stream.queryResult)
+        await showQueryResult(stream.sessionId, stream.queryResult, stream.sql)
       } else if (stream.needsFallbackRun) {
         await fallbackRunSql(stream.sessionId, stream.sql)
       }

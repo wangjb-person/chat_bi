@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ChatMessage } from '@/types/chat'
-import SqlBlock from './SqlBlock.vue'
 import QueryResultTable from './QueryResultTable.vue'
 import PlotlyChart from './PlotlyChart.vue'
 
@@ -20,19 +19,14 @@ const emit = defineEmits<{
         {{ message.text }}
       </p>
 
-      <p v-else-if="message.kind === 'loading'" class="status-line">
-        <span class="spinner" /> 正在生成 SQL…
+      <p v-else-if="message.kind === 'loading' || message.kind === 'executing'" class="status-line">
+        <span class="spinner" /> 正在为您查询…
       </p>
-
-      <p v-else-if="message.kind === 'executing'" class="status-line">
-        <span class="spinner" /> 正在执行查询…
-      </p>
-
-      <SqlBlock v-else-if="message.kind === 'sql-stream' && message.sql" :sql="message.sql" />
 
       <QueryResultTable
         v-else-if="message.kind === 'query-result' && message.queryResult"
         :result="message.queryResult"
+        :sql="message.sql"
       />
 
       <PlotlyChart

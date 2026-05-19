@@ -5,7 +5,8 @@ import type { SseDonePayload, SseErrorPayload, SseSqlChunk } from '@/types/chat'
 export interface StreamAskParams {
   question: string
   tableName: string
-  onSqlChunk: (chunk: string, fullSql: string) => void
+  /** 不传则不在界面流式展示 SQL（业务场景推荐） */
+  onSqlChunk?: (chunk: string, fullSql: string) => void
 }
 
 export interface StreamAskResult {
@@ -14,6 +15,8 @@ export interface StreamAskResult {
   queryResult?: QueryResult
   runError?: string
   needsFallbackRun: boolean
+  sqlCorrected?: boolean
+  correctionCount?: number
 }
 
 /**
@@ -68,17 +71,20 @@ export async function streamAskSql(params: StreamAskParams): Promise<StreamAskRe
 
         if (payload.sql && !payload.done) {
           fullSql += payload.sql
-          onSqlChunk(payload.sql, fullSql)
+          onSqlChunk?.(payload.sql, fullSql)
         }
 
         if (payload.done) {
-          const sql = (payload.sql?.trim() || fullSql.trim())
+          const done = payload as SseDonePayload
+          const sql = (done.sql?.trim() || fullSql.trim())
           result = {
-            sessionId: (payload as SseDonePayload).id,
+            sessionId: done.id,
             sql,
-            queryResult: payload.query_result,
-            runError: payload.run_error,
-            needsFallbackRun: Boolean(sql && !payload.query_result && !payload.run_error),
+            queryResult: done.query_result,
+            runError: done.run_error,
+            needsFallbackRun: Boolean(sql && !done.query_result && !done.run_error),
+            sqlCorrected: done.sql_corrected,
+            correctionCount: done.correction_count,
           }
           break
         }
