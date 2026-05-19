@@ -6,21 +6,28 @@ __pycache__/
 .venv/
 venv/
 
-# 本地数据与模型缓存（不提交）
-backend/data/model_cache/
-backend/data/chroma_db/
+# 本地数据与模型缓存（路径相对 backend/，勿提交）
+backend/data/
+backend/chroma_db/
+backend/model_cache/
 
-# 已废弃的旧目录（勿再使用；若空目录删不掉，关闭 IDE 后运行 scripts/remove_legacy_app.ps1）
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+backend/static/dist/
+
+# 已废弃的旧目录
 app/
 _DELETE_app_legacy/
 
-# 环境变量（密钥、数据库账号等）
+# 环境变量（密钥、数据库账号等，仅本地保留 .env）
 .env
 
 # IDE
 .idea/
 
-# 本地文档（按需保留在本地）
+# 本地文档（按需保留在本地，不提交仓库）
 技术选型.md
 需求文档.md
 read.md

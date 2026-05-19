@@ -42,7 +42,9 @@ if __name__ == "__main__":
     )
     log.info("ChromaDB: %s", settings.persist_directory)
     log.info("LLM: %s", settings.model)
-    log.info("浏览器请打开: http://127.0.0.1:%d", settings.flask_port)
+    log.info("API 服务: http://127.0.0.1:%d", settings.flask_port)
+    log.info("生产 UI: 先 cd frontend && npm run build，再访问上述地址")
+    log.info("开发 UI: cd frontend && npm run dev  → http://127.0.0.1:5173")
     log.info("=" * 50)
 
     ensure_port_free(settings.flask_port)
