@@ -48,6 +48,16 @@ class SqlPromptBuilder:
             "5. 排名筛选优先使用业务字段（如 rank_num）或 ORDER BY + LIMIT，"
             "不要臆造不存在的列\n"
         )
+        column_alias_rules = (
+            "===查询结果列名（必须遵守，供前端表格表头展示）===\n"
+            "1. SELECT 中每个输出列必须使用 AS 指定中文别名，别名来自 DDL 字段 COMMENT、"
+            "字段名含义或业务文档，不要使用英文列名直接作为最终结果列名\n"
+            "2. 中文别名用反引号包裹，例如：student_name AS `姓名`, total_score AS `总分`, "
+            "rank_num AS `排名`\n"
+            "3. 列顺序与问题中提到的字段顺序一致；聚合列也要有中文别名，"
+            "如 STDDEV(total_score) AS `标准差`\n"
+            "4. 仅 SELECT 回答问题所需的列，不要 SELECT *\n"
+        )
         system_content = (
             f"{initial_prompt}\n"
             "===响应指南===\n"
@@ -57,6 +67,7 @@ class SqlPromptBuilder:
             "3. 请使用最相关的数据表\n"
             "4. 确保输出的SQL语句符合MySQL方言规范、可执行且无语法错误\n"
             "5. 请使用中文进行思考和描述\n"
+            f"\n{column_alias_rules}"
             f"\n{mysql_dialect_rules}"
             "\n===DDL信息===\n" + "\n".join(ddl_list) if ddl_list else ""
         )

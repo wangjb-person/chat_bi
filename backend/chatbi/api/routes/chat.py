@@ -22,7 +22,7 @@ _SSE_HEADERS = {
 def _query_result_payload(df: pd.DataFrame) -> Dict[str, Any]:
     return {
         "data": dataframe_to_records(df),
-        "columns": df.columns.tolist(),
+        "columns": [str(c) for c in df.columns.tolist()],
         "row_count": len(df),
     }
 

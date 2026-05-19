@@ -2,6 +2,9 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from chatbi.infrastructure.llm.chinese_question_rules import (
+    CHINESE_BUSINESS_QUESTION_RULES,
+)
 from chatbi.infrastructure.llm.client import LlmClient
 from chatbi.infrastructure.llm.messages import system_message, user_message
 from chatbi.infrastructure.vector.chroma_store import ChromaVectorStore
@@ -80,8 +83,9 @@ class TrainingService:
 
         messages = [
             system_message(
-                "你是一个数据分析专家。根据提供的表结构，生成5个用户可以问的示例问题。"
-                "每个问题应该能够通过SQL查询来回答。直接输出问题列表，每行一个。"
+                "你是一个数据分析专家。根据提供的表结构，生成5个业务人员会问的示例问题。\n"
+                "每个问题应能通过一条 SQL 查询回答。直接输出问题列表，每行一个，不要编号。\n\n"
+                f"{CHINESE_BUSINESS_QUESTION_RULES}"
             ),
             user_message(f"根据以下表结构生成5个示例问题:\n{context}"),
         ]

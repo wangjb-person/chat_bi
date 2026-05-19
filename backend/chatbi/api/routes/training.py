@@ -23,6 +23,7 @@ def train():
                 ddl=data["ddl"],
                 table_name=data.get("table_name", ""),
             )
+            get_container().chat.refresh_ddl_registry()
         elif "documentation" in data:
             doc_id = service.add(
                 documentation=data["documentation"],
@@ -101,6 +102,9 @@ def update_training_data():
             table_name=data.get("table_name", ""),
         )
         if result["success"]:
+            doc_id = data.get("id") or ""
+            if str(doc_id).endswith("-ddl"):
+                get_container().chat.refresh_ddl_registry()
             return jsonify(result)
         return jsonify(result), 400
     except Exception as e:

@@ -7,20 +7,8 @@ import type { QueryResult } from '@/types/api'
 import { createId } from '@/utils/id'
 import { useAppStore } from './appStore'
 
-const WELCOME: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  kind: 'welcome',
-  text: `👋 你好！我是 ChatBI 助手。
-你可以直接用自然语言提问，我会帮你查询并展示结果。
-
-📌 例如：
-• 贵阳金阳第一中学排名第一的总分比排名第二的高多少分
-• 贵阳金阳第一中学总分在 700 分以上的有多少人`,
-}
-
 export const useChatStore = defineStore('chat', () => {
-  const messages = ref<ChatMessage[]>([{ ...WELCOME }])
+  const messages = ref<ChatMessage[]>([])
   const currentSessionId = ref<string | null>(null)
   const sending = ref(false)
 
