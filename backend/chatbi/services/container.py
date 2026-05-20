@@ -28,10 +28,14 @@ def build_container(settings: Settings) -> ServiceContainer:
         embedding_model=settings.embedding_model,
         model_cache_dir=settings.model_cache_dir,
     )
+    sampling = settings.llm_sampling
     llm = LlmClient(
         api_key=settings.api_key,
         base_url=settings.base_url,
         model=settings.model,
+        temperature=sampling.temperature,
+        top_p=sampling.top_p,
+        top_k=sampling.top_k,
     )
     sessions = InMemorySessionStore()
     chat = ChatService(
