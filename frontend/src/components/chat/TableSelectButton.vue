@@ -2,33 +2,37 @@
 import { Grid } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
-import { DATA_TABLE_OPTIONS } from '@/constants/dataTables'
+import { BUSINESS_SECTOR_OPTIONS } from '@/constants/dataTables'
 import { useAppStore } from '@/stores/appStore'
 
 const app = useAppStore()
-const { tableName } = storeToRefs(app)
+const { businessSector } = storeToRefs(app)
 
 const currentLabel = computed(() => {
-  const hit = DATA_TABLE_OPTIONS.find((o) => o.value === tableName.value)
-  return hit?.label ?? (tableName.value || '数据表')
+  const hit = BUSINESS_SECTOR_OPTIONS.find((o) => o.value === businessSector.value)
+  return hit?.label ?? '教育'
 })
 
 function onSelect(value: string) {
-  tableName.value = value
+  businessSector.value = value
 }
 </script>
 
 <template>
   <el-dropdown trigger="click" @command="onSelect">
-    <button type="button" class="table-chip" :title="tableName || '未限定数据表'">
+    <button
+      type="button"
+      class="table-chip"
+      title="业务方向（演示选项，后续将支持按方向切换数据）"
+    >
       <el-icon :size="14"><Grid /></el-icon>
       <span>{{ currentLabel }}</span>
     </button>
     <template #dropdown>
       <el-dropdown-menu>
         <el-dropdown-item
-          v-for="opt in DATA_TABLE_OPTIONS"
-          :key="opt.value || '__all__'"
+          v-for="opt in BUSINESS_SECTOR_OPTIONS"
+          :key="opt.value"
           :command="opt.value"
         >
           {{ opt.label }}

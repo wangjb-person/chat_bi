@@ -1,6 +1,11 @@
-/** 可选数据表（可按业务在部署时扩展） */
-export const DATA_TABLE_OPTIONS: { label: string; value: string }[] = [
-  { label: '全部表', value: '' },
-  { label: '学生成绩', value: 'gy_sjcyz_student_score' },
-  { label: '金阳一中成绩', value: 'qy_jyyz_student_score' },
+/**
+ * 业务方向展示选项（仅 UI，不参与问数 / 检索逻辑）。
+ * 后续可按方向切换语料与数据表时再接入 tableName 等。
+ */
+export const BUSINESS_SECTOR_OPTIONS: { label: string; value: string }[] = [
+  { label: '教育', value: 'education' },
+  { label: '销售', value: 'sales' },
+  { label: '采购', value: 'procurement' },
 ]
+
+export const DEFAULT_BUSINESS_SECTOR = 'education'
