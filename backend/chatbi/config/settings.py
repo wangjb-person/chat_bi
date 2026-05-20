@@ -24,6 +24,13 @@ def _env(key: str, default: str | None = None, *, required: bool = False) -> str
     return value
 
 
+def _parse_optional_int(value: str | None) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    parsed = int(value)
+    return parsed if parsed > 0 else None
+
+
 def _resolve_data_path(value: str | None, default: Path) -> str:
     """将相对路径解析为基于 backend 目录的绝对路径。"""
     if not value:
@@ -44,10 +51,20 @@ class MysqlSettings:
 
 
 @dataclass(frozen=True)
+class LlmSamplingSettings:
+    """大模型采样参数（偏准确、低随机，适合 Text-to-SQL）。"""
+
+    temperature: float
+    top_p: float
+    top_k: int | None
+
+
+@dataclass(frozen=True)
 class Settings:
     api_key: str
     base_url: str
     model: str
+    llm_sampling: LlmSamplingSettings
     initial_prompt: str
     persist_directory: str
     embedding_model: str
@@ -67,6 +84,11 @@ def get_settings() -> Settings:
             "https://dashscope.aliyuncs.com/compatible-mode/v1",
         ),
         model=_env("LLM_MODEL", "qwen-plus"),
+        llm_sampling=LlmSamplingSettings(
+            temperature=float(_env("LLM_TEMPERATURE", "0.1")),
+            top_p=float(_env("LLM_TOP_P", "0.85")),
+            top_k=_parse_optional_int(_env("LLM_TOP_K", "10")),
+        ),
         initial_prompt="你是一位MySQL数据库专家。",
         persist_directory=_resolve_data_path(
             os.getenv("CHROMA_DB_PATH"),
