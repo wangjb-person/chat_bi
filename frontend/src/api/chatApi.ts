@@ -1,11 +1,6 @@
 import { getApiBase, requestJson } from './httpClient'
 import type { QueryResult } from '@/types/api'
 
-export interface GenerateSqlStreamParams {
-  messages: { role: string; content: string }[]
-  table_name?: string
-}
-
 export interface RunSqlResponse extends QueryResult {
   id: string
 }
@@ -23,8 +18,8 @@ export interface FollowupResponse {
 }
 
 export const chatApi = {
-  generateSqlStreamUrl(): string {
-    return `${getApiBase()}/api/generate_sql_stream`
+  askStreamUrl(): string {
+    return `${getApiBase()}/api/ask/stream`
   },
 
   runSql(id: string, sql: string): Promise<RunSqlResponse> {

@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import AskModeSwitch from '@/components/chat/AskModeSwitch.vue'
 import ChatHero from '@/components/chat/ChatHero.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import ExampleQuestionChips from '@/components/chat/ExampleQuestionChips.vue'
+import ConversationSidebar from '@/components/chat/ConversationSidebar.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import { useChatStore } from '@/stores/chatStore'
 
@@ -27,23 +29,33 @@ function onExampleSelect(question: string) {
   <div class="chat-page">
     <AppNavBar />
 
-    <main class="chat-main" :class="{ conversation: hasConversation }">
-      <section v-if="!hasConversation" class="landing">
-        <ChatHero />
-        <div class="landing-composer">
-          <ChatComposer @submit="onAsk" />
-          <ExampleQuestionChips @select="onExampleSelect" />
-        </div>
-      </section>
+    <div class="chat-body">
+      <ConversationSidebar />
 
-      <template v-else>
-        <MessageList class="message-scroll" />
-        <section class="bottom-composer" :class="{ disabled: sending }">
-          <ChatComposer @submit="onAsk" />
-          <ExampleQuestionChips @select="onExampleSelect" />
+      <main class="chat-main" :class="{ conversation: hasConversation }">
+        <section v-if="!hasConversation" class="landing">
+          <div class="mode-row">
+            <AskModeSwitch />
+          </div>
+          <ChatHero />
+          <div class="landing-composer">
+            <ChatComposer @submit="onAsk" />
+            <ExampleQuestionChips @select="onExampleSelect" />
+          </div>
         </section>
-      </template>
-    </main>
+
+        <template v-else>
+          <MessageList class="message-scroll" />
+          <section class="bottom-composer" :class="{ disabled: sending }">
+            <div class="mode-row mode-row--compact">
+              <AskModeSwitch />
+            </div>
+            <ChatComposer @submit="onAsk" />
+            <ExampleQuestionChips @select="onExampleSelect" />
+          </section>
+        </template>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -59,15 +71,34 @@ function onExampleSelect(question: string) {
     #f5f3ff;
 }
 
+.chat-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
 .chat-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 .chat-main.conversation {
   overflow: hidden;
+}
+
+.mode-row {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.mode-row--compact {
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 920px;
 }
 
 .landing {

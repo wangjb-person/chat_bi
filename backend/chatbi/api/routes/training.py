@@ -1,3 +1,9 @@
+"""
+语料训练 API：向 Chroma 写入 question-SQL / DDL / 文档 / 通用规则。
+
+DDL 变更后会刷新 SchemaContextCache，供意图路由使用最新表结构。
+"""
+
 from flask import Blueprint, jsonify, request
 
 from chatbi.api.deps import get_container
@@ -6,8 +12,15 @@ from chatbi.core.json_util import dataframe_to_records
 training_bp = Blueprint("training", __name__, url_prefix="/api")
 
 
+def _refresh_ddl_cache_if_needed(doc_id: str) -> None:
+    """DDL 语料变更后重建意图用的 schema 缓存。"""
+    if doc_id and str(doc_id).endswith("-ddl"):
+        get_container().refresh_ddl_cache()
+
+
 @training_bp.route("/train", methods=["POST"])
 def train():
+    """新增一条训练语料（四选一：question+sql / ddl / documentation / general）。"""
     data = request.get_json()
     service = get_container().training
 
@@ -23,7 +36,7 @@ def train():
                 ddl=data["ddl"],
                 table_name=data.get("table_name", ""),
             )
-            get_container().chat.refresh_ddl_registry()
+            _refresh_ddl_cache_if_needed(doc_id)
         elif "documentation" in data:
             doc_id = service.add(
                 documentation=data["documentation"],
@@ -85,7 +98,9 @@ def remove_training_data():
     if not doc_id:
         return jsonify({"error": "No id provided"}), 400
 
-    if get_container().training.remove(doc_id):
+    container = get_container()
+    if container.training.remove(doc_id):
+        _refresh_ddl_cache_if_needed(doc_id)
         return jsonify({"success": True})
     return jsonify({"error": "Failed to remove"}), 500
 
@@ -102,9 +117,7 @@ def update_training_data():
             table_name=data.get("table_name", ""),
         )
         if result["success"]:
-            doc_id = data.get("id") or ""
-            if str(doc_id).endswith("-ddl"):
-                get_container().chat.refresh_ddl_registry()
+            _refresh_ddl_cache_if_needed(str(data.get("id") or ""))
             return jsonify(result)
         return jsonify(result), 400
     except Exception as e:

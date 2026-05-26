@@ -13,6 +13,16 @@ const router = createRouter({
       name: 'training',
       component: () => import('@/views/TrainingView.vue'),
     },
+    {
+      path: '/metrics',
+      name: 'metrics',
+      component: () => import('@/views/MetricsView.vue'),
+    },
+    {
+      path: '/knowledge',
+      name: 'knowledge',
+      component: () => import('@/views/KnowledgeBaseView.vue'),
+    },
   ],
 })
 

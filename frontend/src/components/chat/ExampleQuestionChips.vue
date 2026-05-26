@@ -1,12 +1,33 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useExampleQuestions } from '@/composables/useExampleQuestions'
+import { KB_EXAMPLE_QUESTIONS } from '@/constants/kbExampleQuestions'
+import { useAppStore } from '@/stores/appStore'
 
 const emit = defineEmits<{
   select: [question: string]
 }>()
 
-const { questions, loading, reload } = useExampleQuestions()
+const app = useAppStore()
+const { askMode } = storeToRefs(app)
+const chatbiExamples = useExampleQuestions()
+
+const questions = computed(() =>
+  askMode.value === 'kb'
+    ? [...KB_EXAMPLE_QUESTIONS]
+    : chatbiExamples.questions.value,
+)
+const loading = computed(() =>
+  askMode.value === 'kb' ? false : chatbiExamples.loading.value,
+)
+
+function reload() {
+  if (askMode.value === 'chatbi') {
+    void chatbiExamples.reload()
+  }
+}
 </script>
 
 <template>
@@ -22,6 +43,7 @@ const { questions, loading, reload } = useExampleQuestions()
       {{ q }}
     </button>
     <button
+      v-if="askMode === 'chatbi'"
       type="button"
       class="icon-btn"
       title="换一批示例问题"

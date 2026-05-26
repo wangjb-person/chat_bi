@@ -2,8 +2,12 @@
 import { Promotion } from '@element-plus/icons-vue'
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useAppStore } from '@/stores/appStore'
 import { useChatStore } from '@/stores/chatStore'
 import TableSelectButton from './TableSelectButton.vue'
+
+const app = useAppStore()
+const { askMode } = storeToRefs(app)
 
 const emit = defineEmits<{
   submit: [question: string]
@@ -33,7 +37,11 @@ defineExpose({ fill })
       v-model="question"
       type="textarea"
       :autosize="{ minRows: 3, maxRows: 6 }"
-      placeholder="请输入您想问的问题"
+      :placeholder="
+        askMode === 'kb'
+          ? '请输入关于制度、流程、FAQ 等问题'
+          : '请输入您想问的问题'
+      "
       :disabled="sending"
       resize="none"
       class="composer-input"
@@ -41,7 +49,7 @@ defineExpose({ fill })
     />
     <div class="composer-toolbar">
       <div class="toolbar-left">
-        <TableSelectButton />
+        <TableSelectButton v-if="askMode === 'chatbi'" />
       </div>
       <button
         type="button"
