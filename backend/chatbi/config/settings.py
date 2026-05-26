@@ -73,6 +73,16 @@ class Settings:
     flask_port: int
     project_root: Path
     backend_root: Path
+    enable_llm_intent: bool
+    chroma_sql_results: int
+    chroma_ddl_results: int
+    chroma_doc_results: int
+    kb_chunk_size: int
+    kb_chunk_overlap: int
+    kb_retrieve_top_k: int
+    kb_retrieve_pool_max: int
+    kb_keyword_rescue_max_chunks: int
+    kb_keyword_weight: float
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -111,4 +121,17 @@ def get_settings() -> Settings:
         flask_port=int(_env("FLASK_PORT", "5000")),
         project_root=PROJECT_ROOT,
         backend_root=BACKEND_ROOT,
+        enable_llm_intent=_env("ENABLE_LLM_INTENT", "false").lower()
+        in ("1", "true", "yes"),
+        chroma_sql_results=int(_env("CHROMA_SQL_RESULTS", "3")),
+        chroma_ddl_results=int(_env("CHROMA_DDL_RESULTS", "3")),
+        chroma_doc_results=int(_env("CHROMA_DOC_RESULTS", "8")),
+        kb_chunk_size=int(_env("KB_CHUNK_SIZE", "600")),
+        kb_chunk_overlap=int(_env("KB_CHUNK_OVERLAP", "120")),
+        kb_retrieve_top_k=int(_env("KB_RETRIEVE_TOP_K", "8")),
+        kb_retrieve_pool_max=int(_env("KB_RETRIEVE_POOL_MAX", "40")),
+        kb_keyword_rescue_max_chunks=int(
+            _env("KB_KEYWORD_RESCUE_MAX_CHUNKS", "120")
+        ),
+        kb_keyword_weight=float(_env("KB_KEYWORD_WEIGHT", "0.45")),
     )

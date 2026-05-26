@@ -5,6 +5,7 @@ import pandas as pd
 import pymysql
 
 from chatbi.config.settings import MysqlSettings
+from chatbi.core.sql_error_message import format_sql_run_error
 
 log = logging.getLogger("chatbi")
 
@@ -47,7 +48,8 @@ class MysqlExecutor:
                 return pd.DataFrame(results)
         except Exception as e:
             log.exception("[run_sql] SQL 执行失败: %s", e)
-            raise Exception(f"SQL 执行失败: {str(e)}\nSQL: {sql}") from e
+            friendly = format_sql_run_error(e, sql=sql)
+            raise Exception(friendly) from e
         finally:
             if conn is not None:
                 try:

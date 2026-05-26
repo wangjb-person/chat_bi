@@ -12,8 +12,8 @@ export function useBackendHealth() {
       const data = await healthApi.ping()
       connected.value = true
       pid.value = data.pid
-      statusText.value = `● 已连接 pid=${data.pid}`
-      statusTitle.value = `后端进程 pid=${data.pid}\n工作目录: ${data.cwd}`
+      statusText.value = '● 服务在线'
+      statusTitle.value = `后端服务正常\n工作目录: ${data.cwd}`
       return true
     } catch (e) {
       connected.value = false

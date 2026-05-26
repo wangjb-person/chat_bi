@@ -1,0 +1,60 @@
+{
+  "cases": [
+    {
+      "question": "你可以给我讲个笑话吗",
+      "intent": "chat"
+    },
+    {
+      "question": "华强集团公司介绍",
+      "intent": "knowledge"
+    },
+    {
+      "question": "贵阳金阳第一中学前20名学生总分成绩的标准差是多少？",
+      "intent": "query"
+    },
+    {
+      "question": "为什么A产品本月毛利率下降了？",
+      "intent": "analysis"
+    },
+    {
+      "question": "贵阳世纪城第一中学语文分数低于60分的学生有哪些",
+      "intent": "query"
+    },
+    {
+      "question": "贵阳世纪城第一中学排名第一的语文分数是多少",
+      "intent": "query"
+    },
+    {
+      "question": "中国有多少个省份",
+      "intent": "knowledge"
+    },
+    {
+      "question": "重庆的行政区域有哪些",
+      "intent": "knowledge"
+    },
+    {
+      "question": "张三团队的完成率达标了吗",
+      "intent": "clarify"
+    },
+    {
+      "question": "分析一下当前的MCP与skills",
+      "intent": "knowledge"
+    },
+    {
+      "question": "跟我分析一下金阳第一中学与世纪城第一中学的学生整体情况成绩，以报告的方式分析给我",
+      "intent": "analysis"
+    },
+    {
+      "question": "当前比较出名的新能源车企有多少个",
+      "intent": "knowledge"
+    },
+    {
+      "question": "python语言里有多少种数据类型",
+      "intent": "knowledge"
+    },
+    {
+      "question": "清朝有多少位皇帝",
+      "intent": "knowledge"
+    }
+  ]
+}

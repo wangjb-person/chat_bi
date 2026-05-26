@@ -29,6 +29,7 @@ class ChromaVectorStore:
     COLLECTION_DDL = "vanna_ddl"
     COLLECTION_DOC = "vanna_doc"
     COLLECTION_GEN = "vanna_gen"
+    COLLECTION_KB = "kb_chunks"
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class ChromaVectorStore:
             self.COLLECTION_DDL,
             self.COLLECTION_DOC,
             self.COLLECTION_GEN,
+            self.COLLECTION_KB,
         ]
         existing = self.chroma_client.list_collections()
         existing_names = [col.name for col in existing] if existing else []
@@ -151,6 +153,20 @@ class ChromaVectorStore:
         if results["metadatas"] and results["metadatas"][0]:
             for metadata in results["metadatas"][0]:
                 if "ddl" in metadata:
+                    ddl_list.append(metadata["ddl"])
+        return ddl_list
+
+    def list_all_ddl(self, *, limit: int = 50) -> List[str]:
+        """列出已入库 DDL（无向量检索，供意图路由预热）。"""
+        try:
+            collection = self.chroma_client.get_collection(self.COLLECTION_DDL)
+            data = collection.get(include=["metadatas"], limit=limit)
+        except Exception:
+            return []
+        ddl_list: List[str] = []
+        if data.get("metadatas"):
+            for metadata in data["metadatas"]:
+                if metadata and "ddl" in metadata:
                     ddl_list.append(metadata["ddl"])
         return ddl_list
 
@@ -451,3 +467,116 @@ class ChromaVectorStore:
                 print(f"Error searching {collection_name}: {e}")
 
         return {"data": all_results, "total": len(all_results)}
+
+    def add_kb_chunks(self, doc_id: str, doc_title: str, chunks: List[str]) -> int:
+        """写入文档切片到独立知识库集合（与 vanna_doc 隔离）。"""
+        if not chunks:
+            return 0
+        collection = self.chroma_client.get_collection(self.COLLECTION_KB)
+        ids: List[str] = []
+        embeddings: List[List[float]] = []
+        metadatas: List[Dict] = []
+        documents: List[str] = []
+        for index, chunk in enumerate(chunks):
+            text = chunk.strip()
+            if not text:
+                continue
+            ids.append(f"{doc_id}-{index}")
+            embeddings.append(self._get_embedding(text))
+            metadatas.append(
+                {
+                    "doc_id": doc_id,
+                    "doc_title": doc_title,
+                    "chunk_index": index,
+                }
+            )
+            documents.append(text)
+        if not ids:
+            return 0
+        collection.add(
+            ids=ids,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            documents=documents,
+        )
+        return len(ids)
+
+    def delete_kb_document(self, doc_id: str) -> None:
+        """按 doc_id 删除该文档的全部切片。"""
+        try:
+            collection = self.chroma_client.get_collection(self.COLLECTION_KB)
+            collection.delete(where={"doc_id": doc_id})
+        except Exception as e:
+            print(f"[chroma] delete kb doc {doc_id}: {e}")
+
+    def kb_chunk_count(self) -> int:
+        """知识库集合中的切片总数。"""
+        try:
+            collection = self.chroma_client.get_collection(self.COLLECTION_KB)
+            return int(collection.count())
+        except Exception:
+            return 0
+
+    def list_all_kb_chunks(self) -> List[Dict[str, object]]:
+        """返回库内全部切片（用于小库关键词补救）。"""
+        try:
+            collection = self.chroma_client.get_collection(self.COLLECTION_KB)
+        except Exception:
+            return []
+        if collection.count() == 0:
+            return []
+
+        data = collection.get(include=["metadatas", "documents"])
+        docs = data.get("documents") or []
+        metas = data.get("metadatas") or []
+        out: List[Dict[str, object]] = []
+        for meta, doc in zip(metas, docs):
+            if not doc:
+                continue
+            out.append(
+                {
+                    "text": doc,
+                    "doc_title": (meta or {}).get("doc_title", ""),
+                    "doc_id": (meta or {}).get("doc_id", ""),
+                    "chunk_index": (meta or {}).get("chunk_index", 0),
+                    "score": 0.0,
+                }
+            )
+        return out
+
+    def query_kb(
+        self, question: str, *, n_results: int = 5
+    ) -> List[Dict[str, object]]:
+        """检索知识库切片；返回 text、doc_title、chunk_index、score（越大越相似）。"""
+        try:
+            collection = self.chroma_client.get_collection(self.COLLECTION_KB)
+        except Exception:
+            return []
+        total = collection.count()
+        if total == 0:
+            return []
+
+        k = min(max(1, n_results), total)
+        results = collection.query(
+            query_embeddings=[self._get_embedding(question)],
+            n_results=k,
+            include=["metadatas", "documents", "distances"],
+        )
+        out: List[Dict[str, object]] = []
+        metas = results.get("metadatas") or [[]]
+        docs = results.get("documents") or [[]]
+        dists = results.get("distances") or [[]]
+        for meta, doc, dist in zip(metas[0], docs[0], dists[0]):
+            if not doc:
+                continue
+            score = 1.0 - float(dist) if dist is not None else 0.0
+            out.append(
+                {
+                    "text": doc,
+                    "doc_title": (meta or {}).get("doc_title", ""),
+                    "doc_id": (meta or {}).get("doc_id", ""),
+                    "chunk_index": (meta or {}).get("chunk_index", 0),
+                    "score": round(score, 4),
+                }
+            )
+        return out
